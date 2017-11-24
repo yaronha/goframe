@@ -2,7 +2,7 @@ package dataframe
 
 import (
 	"io"
-	"github.com/iguazio/v3io-go-http"
+	"github.com/v3io/v3io-go-http"
 	"github.com/olekukonko/tablewriter"
 	"github.com/nuclio/nuclio-sdk"
 	"fmt"
