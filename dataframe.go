@@ -4,17 +4,19 @@ import (
 	"io"
 	"github.com/v3io/v3io-go-http"
 	"github.com/olekukonko/tablewriter"
-	"github.com/nuclio/nuclio-sdk"
 	"fmt"
 	"bytes"
 	"github.com/pkg/errors"
 	"strconv"
 	"strings"
+	"github.com/nuclio/logger"
+	"encoding/binary"
+	"math"
 )
 
 var Writer writersList
 
-func NewDataContext(logger nuclio.Logger) *DataContext {
+func NewDataContext(logger logger.Logger) *DataContext {
 	dc := DataContext{}
 	dc.Write = newWritersList(&dc)
 	dc.Read  = newReaderList(&dc)
@@ -25,7 +27,7 @@ func NewDataContext(logger nuclio.Logger) *DataContext {
 }
 
 type DataContext struct {
-	logger    nuclio.Logger
+	logger    logger.Logger
 	Write     *writersList
 	Read      *readersList
 	respChan  chan *v3io.Response
@@ -212,10 +214,52 @@ func (f tableField) AsStr() string {
 	switch f.field.(type) {
 	case string:
 		return f.field.(string)
+	case []byte:
+		return string(f.field.([]byte))
 	case int:
 		return strconv.Itoa(f.field.(int))
 	}
 	return ""
+}
+
+func (f tableField) AsBytes() []byte {
+	switch f.field.(type) {
+	case string:
+		return []byte(f.field.(string))
+	case []byte:
+		return f.field.([]byte)
+	}
+	return []byte{}
+}
+
+
+func (f tableField) AsInt64Array() []uint64 {
+	var array []uint64
+	switch f.field.(type) {
+	case []byte:
+		bytes := f.field.([]byte)
+		for i :=16 ; i+8 < len(bytes); i += 8 {
+			val := binary.LittleEndian.Uint64(bytes[i:i+8])
+			array = append(array, val)
+		}
+	}
+	return array
+
+}
+
+func (f tableField) AsFloat64Array() []float64 {
+	var array []float64
+
+	switch f.field.(type) {
+	case []byte:
+		bytes := f.field.([]byte)
+		for i :=16 ; i+8 < len(bytes); i += 8 {
+			val := binary.LittleEndian.Uint64(bytes[i:i+8])
+			float := math.Float64frombits(val)
+			array = append(array, float)
+		}
+	}
+	return array
 }
 
 type tableColumn  struct {
@@ -622,7 +666,7 @@ func (ic *ItemsCursor) setResponse(response *v3io.Response) {
 
 type writersList struct {
 	dc        *DataContext
-	logger    nuclio.Logger
+	logger    logger.Logger
 }
 
 func newWritersList(dc *DataContext) *writersList {
